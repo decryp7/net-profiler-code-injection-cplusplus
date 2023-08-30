@@ -1,0 +1,9 @@
+; NETProfilerPrototype.def : Declares the module parameters.
+
+LIBRARY "NETProfilerPrototype.dll"
+
+EXPORTS
+	DllCanUnloadNow		PRIVATE
+	DllGetClassObject	PRIVATE
+	DllRegisterServer	PRIVATE
+	DllUnregisterServer	PRIVATE
