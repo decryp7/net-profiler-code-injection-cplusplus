@@ -28,7 +28,7 @@ HRESULT __stdcall ProfilerCallback::Initialize(IUnknown* pICorProfilerInfoUnk)
 	//request for instance of ICorProfilerInfo
 	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo2, (LPVOID*)&iCorProfilerInfo);
 	//set flags for events that we want
-	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_ALL);
+	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_MODULE_LOADS);
 	utility = new Utility(iCorProfilerInfo);
 	return S_OK;
 }
@@ -234,12 +234,12 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 
 	unsigned instructionOffset = 0;
 	BYTE * instructions = new BYTE[12];
-	instructions[instructionOffset++] = 0x72; //ltdstr
+	instructions[instructionOffset++] = CEE_LDSTR; //ltdstr
 	//msg token
 	for (ULONG i = 0; i < sizeof(msg); i++) {
 		instructions[instructionOffset++] = ((char*)&msg)[i];
 	}
-	instructions[instructionOffset++] = 0x2A; //ret
+	instructions[instructionOffset++] = CEE_RET; //ret
 
 	std::cout << "Writing SayHello() body in TestApp.DerivedClass type..." << std::endl;
 	IMethodMalloc* allocator = nullptr;
