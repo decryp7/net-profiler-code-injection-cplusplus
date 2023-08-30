@@ -150,13 +150,6 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//	fprintf(stdout, " %02x", methodSignature[i]);
 	//}
 	//fprintf(stdout, "\n");
-	//std::cout << methodAttributes << std::endl;
-	//methodAttributes = mdPublic | mdHideBySig | mdVirtual | mdReuseSlot;
-	//std::cout << methodAttributes << std::endl;
-
-	//std::cout << methodImplFlags << std::endl;
-	//methodImplFlags = miIL | miManaged | miPreserveSig | miNoInlining;
-	//std::cout << methodImplFlags << std::endl;
 
 	//LPCBYTE pMethodBytes;
 	//ULONG cbMethodSize;
@@ -176,9 +169,9 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 
 	std::cout << "Creating SayHello() in TestApp.DerivedClass type..." << std::endl;
 	//create method in class
-	COR_SIGNATURE newMethodSignature[] = { IMAGE_CEE_CS_CALLCONV_HASTHIS,   //__stdcall
-		0,                               // 0 inputs
-		ELEMENT_TYPE_STRING        // No return
+	COR_SIGNATURE newMethodSignature[] = { IMAGE_CEE_CS_CALLCONV_HASTHIS,   
+		0,                               
+		ELEMENT_TYPE_STRING       
 	};
 	mdMethodDef methodDef;
 	if (!SUCCEEDED(metadataEmit->DefineMethod(typeDef, L"SayHello",
@@ -275,13 +268,13 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	}
 
 	//check the method body
-	LPCBYTE pMethodBytes;
-	ULONG cbMethodSize;
-	if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBody(moduleID, methodDef, &pMethodBytes, &cbMethodSize)))
-	{
-		std::cout << "Unable to get method IL function body in TestApp.DerivedClass!" << std::endl;
-		return S_OK;
-	}
+	//LPCBYTE pMethodBytes;
+	//ULONG cbMethodSize;
+	//if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBody(moduleID, methodDef, &pMethodBytes, &cbMethodSize)))
+	//{
+	//	std::cout << "Unable to get method IL function body in TestApp.DerivedClass!" << std::endl;
+	//	return S_OK;
+	//}
 
 	//print the code of the function
 	//fprintf(stdout, "il:");
