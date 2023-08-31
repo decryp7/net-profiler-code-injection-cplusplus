@@ -228,14 +228,29 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		return S_OK;
 	}
 
-	unsigned instructionOffset = 0;
-	BYTE * instructions = new BYTE[12];
-	instructions[instructionOffset++] = CEE_LDSTR; //ltdstr
-	//msg token
-	for (ULONG i = 0; i < sizeof(msg); i++) {
-		instructions[instructionOffset++] = ((char*)&msg)[i];
+	//make structure with no padding
+	#pragma pack(push, 1)
+	struct
+	{
+		BYTE ldstr; DWORD str_token;
+		BYTE rtn;
+	} methodBody;
+	#pragma pack(pop)
+
+	methodBody.ldstr = CEE_LDSTR;
+	methodBody.str_token = msg;
+	methodBody.rtn = CEE_RET;
+
+	unsigned instructionOffset = sizeof(methodBody);
+	BYTE * instructions = new BYTE[sizeof(methodBody)];
+	CopyMemory(instructions, &methodBody, sizeof(methodBody));
+
+	//print the code of the function
+	fprintf(stdout, "il:");
+	for (ULONG i = 0; i < instructionOffset; i++) {
+		fprintf(stdout, " %02x", instructions[i]);
 	}
-	instructions[instructionOffset++] = CEE_RET; //ret
+	fprintf(stdout, "\n");
 
 	std::cout << "Writing SayHello() body in TestApp.DerivedClass type..." << std::endl;
 	IMethodMalloc* allocator = nullptr;
