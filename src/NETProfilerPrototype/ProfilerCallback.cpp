@@ -85,6 +85,9 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadStarted(ModuleID moduleID)
 
 HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatus)
 {
+	//while (!::IsDebuggerPresent())
+	//	::Sleep(100);
+
 	//get the module name
 	char* moduleName = new char[100];
 	utility->GetModuleNameByModuleId(moduleID, moduleName, 100);
