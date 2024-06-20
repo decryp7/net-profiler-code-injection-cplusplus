@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 
 namespace TestApp
 {
-    public class BaseClass
+    public class DummyClassInterface : TestInterface.TestInterface
     {
-        public virtual TestInterface.TestInterface GetTestInterface()
+        public string GetString()
         {
-            return new DummyClassInterface();
+            return "Dummy interface";
         }
     }
 }

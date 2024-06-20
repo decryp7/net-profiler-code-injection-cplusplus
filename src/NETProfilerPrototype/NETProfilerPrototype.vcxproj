@@ -113,7 +113,7 @@
       <SubSystem>Windows</SubSystem>
       <ModuleDefinitionFile>.\NETProfilerPrototype.def</ModuleDefinitionFile>
       <RegisterOutput>false</RegisterOutput>
-      <AdditionalDependencies>corguids.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Program Files (x86)\Windows Kits\NETFXSDK\4.6.1\Lib\um\x86\corguids.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

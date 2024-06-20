@@ -4,11 +4,12 @@
 #include <corprof.h>
 #include <string>
 #include <corhlpr.h>
+#include <fstream>
 #include <vector>
 
 const ULONG TINY_HEADER_SIZE = 0x1;
 
-CComQIPtr<ICorProfilerInfo2> iCorProfilerInfo;
+CComQIPtr<ICorProfilerInfo5> iCorProfilerInfo;
 
 ProfilerCallback::ProfilerCallback() {
 	//std::cout << "constructor" << std::endl;
@@ -26,9 +27,11 @@ void ProfilerCallback::FinalRelease()
 HRESULT __stdcall ProfilerCallback::Initialize(IUnknown* pICorProfilerInfoUnk)
 {
 	//request for instance of ICorProfilerInfo
-	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo2, (LPVOID*)&iCorProfilerInfo);
+	pICorProfilerInfoUnk->QueryInterface(IID_ICorProfilerInfo5, (LPVOID*)&iCorProfilerInfo);
 	//set flags for events that we want
-	iCorProfilerInfo->SetEventMask(COR_PRF_MONITOR_MODULE_LOADS);
+	HRESULT result = iCorProfilerInfo->SetEventMask2(COR_PRF_ALL, 
+		COR_PRF_HIGH_ADD_ASSEMBLY_REFERENCES);
+	std::cout << result << std::endl;
 	utility = new Utility(iCorProfilerInfo);
 	return S_OK;
 }
@@ -83,11 +86,9 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadStarted(ModuleID moduleID)
 	return S_OK;
 }
 
+//https://www.mail-archive.com/dotnet-rotor@discuss.develop.com/msg00510.html
 HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatus)
 {
-	//while (!::IsDebuggerPresent())
-	//	::Sleep(100);
-
 	//get the module name
 	char* moduleName = new char[100];
 	utility->GetModuleNameByModuleId(moduleID, moduleName, 100);
@@ -111,6 +112,63 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		return S_OK;
 	}
 
+	std::cout << "Getting IMetaDataAssemblyEmit interface..." << std::endl;
+	IMetaDataAssemblyEmit* metadataAssemblyEmit;
+	if (!SUCCEEDED(metadataEmit->QueryInterface(IID_IMetaDataAssemblyEmit, (void**)&metadataAssemblyEmit)))
+	{
+		std::cout << "Unable to get IMetaDataAssemblyEmit!" << std::endl;
+		return S_OK;
+	}
+
+	ASSEMBLYMETADATA amd;
+	ZeroMemory(&amd, sizeof(amd));
+	amd.usMajorVersion = 1;
+	amd.usMinorVersion = 0;
+	amd.usBuildNumber = 3300;
+	amd.usRevisionNumber = 0;
+
+	//add TestLibrary.dll reference
+	mdModuleRef testLibraryRef;
+	if(!SUCCEEDED(metadataAssemblyEmit->DefineAssemblyRef(NULL, 
+		0, 
+		L"TestLibrary", 
+		&amd, 
+		NULL, 
+		0,
+		0,
+		&testLibraryRef)))
+	{
+		std::cout << "Unable to DefineAssemblyRef!" << std::endl;
+		return S_OK;
+	}
+
+	//add type reference
+	mdTypeRef testClassRef;
+	if(!SUCCEEDED(metadataEmit->DefineTypeRefByName(testLibraryRef, L"TestClass", &testClassRef)))
+	{
+		std::cout << "Unable to DefineTypeRefByName!" << std::endl;
+		return S_OK;
+	}
+
+	// Create a token for the constructor
+	BYTE sig[] = {
+	 0, // IMAGE_CEE_CS_CALLCONV_DEFAULT
+	 0x1, // argument count
+	 ELEMENT_TYPE_CLASS, // ret = ELEMENT_TYPE_VOID
+	 ELEMENT_TYPE_CLASS
+	};
+
+	mdMemberRef testClassConstructorRef;
+	if(!SUCCEEDED(metadataEmit->DefineMemberRef(testClassRef,
+		L"TestClass",
+		sig,
+		sizeof(sig),
+		&testClassConstructorRef)))
+	{
+		std::cout << "Unable to DefineMemeberRef!" << std::endl;
+		return S_OK;
+	}
+
 	std::cout << "Getting IMetaDataImport interface..." << std::endl;
 	//get interface to get type information
 	IMetaDataImport* metadataImport;
@@ -120,12 +178,12 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		return S_OK;
 	}
 	
-	std::cout << "Looking for TestApp.DerivedClass type..." << std::endl;
+	std::cout << "Looking for TestApp.TargetClassForInjection type..." << std::endl;
 	//get type token
 	mdTypeDef typeDef;
-	if (!SUCCEEDED(metadataImport->FindTypeDefByName(L"TestApp.DerivedClass", NULL, &typeDef)))
+	if (!SUCCEEDED(metadataImport->FindTypeDefByName(L"TestApp.TargetClassForInjection", NULL, &typeDef)))
 	{
-		std::cout << "Unable to find TestApp.DerivedClass!" << std::endl;
+		std::cout << "Unable to find TestApp.TargetClassForInjection!" << std::endl;
 		return S_OK;
 	}
 
@@ -170,14 +228,15 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//fprintf(stdout, "\n");
 
 
-	std::cout << "Creating SayHello() in TestApp.DerivedClass type..." << std::endl;
+	std::cout << "Overriding GetTestInterface() in TestApp.TargetClassForInjection type..." << std::endl;
 	//create method in class
-	COR_SIGNATURE newMethodSignature[] = { IMAGE_CEE_CS_CALLCONV_HASTHIS,   
+	COR_SIGNATURE newMethodSignature[] = {
+		IMAGE_CEE_CS_CALLCONV_HASTHIS | IMAGE_CEE_CS_CALLCONV_DEFAULT,
 		0,                               
-		ELEMENT_TYPE_STRING       
+		ELEMENT_TYPE_CLASS      
 	};
 	mdMethodDef methodDef;
-	if (!SUCCEEDED(metadataEmit->DefineMethod(typeDef, L"SayHello",
+	if (!SUCCEEDED(metadataEmit->DefineMethod(typeDef, L"GetTestInterface",
 		mdPublic | mdHideBySig | mdVirtual | mdReuseSlot,
 		newMethodSignature, 
 		sizeof(newMethodSignature), 
@@ -185,7 +244,7 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		miIL,
 		&methodDef)))
 	{
-		std::cout << "Unable to define SayHello!" << std::endl;
+		std::cout << "Unable to define GetTestInterface!" << std::endl;
 		return S_OK;
 	}
 
@@ -220,25 +279,25 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//0x2a ret
 
 	//create method body
-	LPCWSTR szString = L"Hello from Overridden SayHello in Derived Class!";
-	mdString msg;
-	if(!SUCCEEDED(metadataEmit->DefineUserString(szString, wcslen(szString), &msg)))
-	{
-		std::cout << "Unable to define string!" << std::endl;
-		return S_OK;
-	}
+	//LPCWSTR szString = L"Hello from Overridden SayHello in Derived Class!";
+	//mdString msg;
+	//if(!SUCCEEDED(metadataEmit->DefineUserString(szString, wcslen(szString), &msg)))
+	//{
+	//	std::cout << "Unable to define string!" << std::endl;
+	//	return S_OK;
+	//}
 
 	//make structure with no padding
 	#pragma pack(push, 1)
 	struct
 	{
-		BYTE ldstr; DWORD str_token;
+		BYTE call; DWORD member_token;
 		BYTE rtn;
 	} methodBody;
 	#pragma pack(pop)
 
-	methodBody.ldstr = CEE_LDSTR;
-	methodBody.str_token = msg;
+	methodBody.call = CEE_LDSTR;
+	methodBody.member_token = testClassConstructorRef;
 	methodBody.rtn = CEE_RET;
 
 	unsigned instructionOffset = sizeof(methodBody);
@@ -252,7 +311,7 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	}
 	fprintf(stdout, "\n");
 
-	std::cout << "Writing SayHello() body in TestApp.DerivedClass type..." << std::endl;
+	std::cout << "Overriding GetTestInterface() in TestApp.TargetClassForInjection type..." << std::endl;
 	IMethodMalloc* allocator = nullptr;
 	if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBodyAllocator(moduleID, &allocator)) || allocator == nullptr)
 	{
@@ -615,6 +674,7 @@ HRESULT __stdcall ProfilerCallback::ThreadNameChanged(ThreadID threadID, ULONG c
 
 HRESULT __stdcall ProfilerCallback::GarbageCollectionStarted(int cGenerations, BOOL generationCollected[], COR_PRF_GC_REASON reason)
 {
+
 	return S_OK;
 }
 
@@ -647,3 +707,67 @@ HRESULT __stdcall ProfilerCallback::HandleDestroyed(GCHandleID handleID)
 {
 	return S_OK;
 }
+
+HRESULT __stdcall ProfilerCallback::InitializeForAttach(IUnknown* pCorProfilerInfoUnk, void* pvClientData, UINT cbClientData)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ProfilerAttachComplete()
+{
+	return S_OK;
+}
+
+
+HRESULT __stdcall ProfilerCallback::ProfilerDetachSucceeded()
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ReJITCompilationStarted(FunctionID functionId, ReJITID rejitId, BOOL fIsSafeToBlock)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::GetReJITParameters(ModuleID moduleId, mdMethodDef methodId, ICorProfilerFunctionControl* pFunctionControl)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ReJITCompilationFinished(FunctionID functionId, ReJITID rejitId, HRESULT hrStatus, BOOL fIsSafeToBlock)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ReJITError(ModuleID moduleId, mdMethodDef methodId, FunctionID functionId, HRESULT hrStatus)
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::MovedReferences2(ULONG cMovedObjectIDRanges, ObjectID oldObjectIDRangeStart[], ObjectID newObjectIDRangeStart[], SIZE_T cObjectIDRangeLength[])
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::SurvivingReferences2(ULONG cSurvivingObjectIDRanges, ObjectID objectIDRangeStart[], SIZE_T cObjectIDRangeLength[])
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::ConditionalWeakTableElementReferences(ULONG cRootRefs, ObjectID keyRefIds[], ObjectID valueRefIds[], GCHandleID rootIds[])
+{
+	return S_OK;
+}
+
+HRESULT __stdcall ProfilerCallback::GetAssemblyReferences(const WCHAR* wszAssemblyPath, ICorProfilerAssemblyReferenceProvider* pAsmRefProvider)
+{
+	std::cout << "GetAssemblyReferences" << std::endl;
+	return S_OK;
+}
+
+
+
+
+
+
+

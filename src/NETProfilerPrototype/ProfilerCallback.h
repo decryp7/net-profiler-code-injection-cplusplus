@@ -18,7 +18,7 @@ enum CanonicalName {
 class ATL_NO_VTABLE ProfilerCallback :
 	public CComObjectRootEx<CComSingleThreadModel>,
 	public CComCoClass<ProfilerCallback, &CLSID_NetProfiler>,
-	public ICorProfilerCallback2
+	public ICorProfilerCallback6
 {
 public:
 	ProfilerCallback();
@@ -27,6 +27,10 @@ public:
 	BEGIN_COM_MAP(ProfilerCallback)
 		COM_INTERFACE_ENTRY(ICorProfilerCallback)
 		COM_INTERFACE_ENTRY(ICorProfilerCallback2)
+		COM_INTERFACE_ENTRY(ICorProfilerCallback3)
+		COM_INTERFACE_ENTRY(ICorProfilerCallback4)
+		COM_INTERFACE_ENTRY(ICorProfilerCallback5)
+		COM_INTERFACE_ENTRY(ICorProfilerCallback6)
 	END_COM_MAP()
 	DECLARE_PROTECT_FINAL_CONSTRUCT()
 
@@ -113,6 +117,55 @@ public:
 	virtual HRESULT __stdcall RootReferences2(ULONG cRootRefs, ObjectID rootRefIds[], COR_PRF_GC_ROOT_KIND rootKinds[], COR_PRF_GC_ROOT_FLAGS rootFlags[], UINT_PTR rootIds[]);
 	virtual HRESULT __stdcall HandleCreated(GCHandleID handleId, ObjectID initialObjectId);
 	virtual HRESULT __stdcall HandleDestroyed(GCHandleID handleId);
+
+	// ICorProfilerCallback3 interface implementation
+	virtual HRESULT __stdcall InitializeForAttach(
+		/* [in] */ IUnknown *pCorProfilerInfoUnk,
+		/* [in] */ void *pvClientData,
+		/* [in] */ UINT cbClientData);
+	virtual HRESULT __stdcall ProfilerAttachComplete();
+	virtual HRESULT __stdcall ProfilerDetachSucceeded();
+
+	// ICorProfilerCallback4 interface implementation
+	virtual HRESULT __stdcall ReJITCompilationStarted(
+		/* [in] */ FunctionID functionId,
+		/* [in] */ ReJITID rejitId,
+		/* [in] */ BOOL fIsSafeToBlock);
+	virtual HRESULT __stdcall GetReJITParameters(
+		/* [in] */ ModuleID moduleId,
+		/* [in] */ mdMethodDef methodId,
+		/* [in] */ ICorProfilerFunctionControl *pFunctionControl);
+	virtual HRESULT __stdcall ReJITCompilationFinished(
+		/* [in] */ FunctionID functionId,
+		/* [in] */ ReJITID rejitId,
+		/* [in] */ HRESULT hrStatus,
+		/* [in] */ BOOL fIsSafeToBlock);
+	virtual HRESULT __stdcall ReJITError(
+		/* [in] */ ModuleID moduleId,
+		/* [in] */ mdMethodDef methodId,
+		/* [in] */ FunctionID functionId,
+		/* [in] */ HRESULT hrStatus);
+	virtual HRESULT __stdcall MovedReferences2(
+		/* [in] */ ULONG cMovedObjectIDRanges,
+		/* [size_is][in] */ ObjectID oldObjectIDRangeStart[],
+		/* [size_is][in] */ ObjectID newObjectIDRangeStart[],
+		/* [size_is][in] */ SIZE_T cObjectIDRangeLength[]);
+	virtual HRESULT __stdcall SurvivingReferences2(
+		/* [in] */ ULONG cSurvivingObjectIDRanges,
+		/* [size_is][in] */ ObjectID objectIDRangeStart[],
+		/* [size_is][in] */ SIZE_T cObjectIDRangeLength[]);
+
+	// ICorProfilerCallback5 interface implementation
+	virtual HRESULT __stdcall ConditionalWeakTableElementReferences(
+		/* [in] */ ULONG cRootRefs,
+		/* [size_is][in] */ ObjectID keyRefIds[],
+		/* [size_is][in] */ ObjectID valueRefIds[],
+		/* [size_is][in] */ GCHandleID rootIds[]);
+
+	// ICorProfilerCallback6 interface implementation
+	virtual HRESULT __stdcall GetAssemblyReferences(
+		/* [string][in] */ const WCHAR *wszAssemblyPath,
+		/* [in] */ ICorProfilerAssemblyReferenceProvider *pAsmRefProvider);
 private:
 	Utility* utility;
 };

@@ -3,7 +3,7 @@
 #include "corprof.h"
 #include "Utility.h"
 
-Utility::Utility(ICorProfilerInfo2* info) {
+Utility::Utility(ICorProfilerInfo5* info) {
 	this->iCorProfilerInfo = info;
 }
 

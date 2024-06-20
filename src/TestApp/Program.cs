@@ -14,8 +14,9 @@ namespace TestApp
         {
             try
             {
-                BaseClass baseClass = new DerivedClass();
-                Console.WriteLine(baseClass.SayHello());
+                BaseClass targetClass = new TargetClassForInjection();
+                Console.WriteLine(targetClass.GetTestInterface().GetString());
+                //GC.Collect(3, GCCollectionMode.Forced, true, true);
             }
             catch (Exception ex)
             {
