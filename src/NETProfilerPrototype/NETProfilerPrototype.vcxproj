@@ -267,6 +267,9 @@
     <ResourceCompile Include="NETProfilerPrototype.rc" />
   </ItemGroup>
   <ItemGroup>
+    <CopyFileToFolders Include="InjectTestLibrary.bat">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
     <None Include="NETProfilerPrototype.def" />
     <None Include="NETProfilerPrototype.rgs" />
   </ItemGroup>

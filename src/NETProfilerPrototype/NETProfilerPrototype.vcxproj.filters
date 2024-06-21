@@ -82,4 +82,9 @@
       <Filter>Source Files</Filter>
     </Midl>
   </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="InjectTestLibrary.bat">
+      <Filter>Source Files</Filter>
+    </CopyFileToFolders>
+  </ItemGroup>
 </Project>

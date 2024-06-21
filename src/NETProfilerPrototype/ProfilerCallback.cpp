@@ -89,18 +89,20 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadStarted(ModuleID moduleID)
 HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESULT hrStatus)
 {
 	//get the module name
-	char* moduleName = new char[100];
-	utility->GetModuleNameByModuleId(moduleID, moduleName, 100);
+	constexpr DWORD pathLength = 256;
+	char* moduleName = new char[pathLength];
+	utility->GetModuleNameByModuleId(moduleID, moduleName, pathLength);
 	const std::string moduleN = moduleName;
 	delete[] moduleName;
+
+	std::cout << "ModuleName: " << moduleN << std::endl;
 
 	//looking for target module
 	if (moduleN.find("TestApp.exe") > moduleN.length())
 	{
+		std::cout << moduleN << " is not targeted for code injection." << std::endl << std::endl;
 		return S_OK;
 	}
-
-	std::cout << "ModuleName: " << moduleN << std::endl;
 
 	std::cout << "Getting IMetaDataEmit interface..." << std::endl;
 	//get interface to create method
