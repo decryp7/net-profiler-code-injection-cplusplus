@@ -31,7 +31,6 @@ HRESULT __stdcall ProfilerCallback::Initialize(IUnknown* pICorProfilerInfoUnk)
 	//set flags for events that we want
 	HRESULT result = iCorProfilerInfo->SetEventMask2(COR_PRF_ALL, 
 		COR_PRF_HIGH_ADD_ASSEMBLY_REFERENCES);
-	std::cout << result << std::endl;
 	utility = new Utility(iCorProfilerInfo);
 	return S_OK;
 }
@@ -120,55 +119,6 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		return S_OK;
 	}
 
-	ASSEMBLYMETADATA amd;
-	ZeroMemory(&amd, sizeof(amd));
-	amd.usMajorVersion = 1;
-	amd.usMinorVersion = 0;
-	amd.usBuildNumber = 3300;
-	amd.usRevisionNumber = 0;
-
-	//add TestLibrary.dll reference
-	mdModuleRef testLibraryRef;
-	if(!SUCCEEDED(metadataAssemblyEmit->DefineAssemblyRef(NULL, 
-		0, 
-		L"TestLibrary", 
-		&amd, 
-		NULL, 
-		0,
-		0,
-		&testLibraryRef)))
-	{
-		std::cout << "Unable to DefineAssemblyRef!" << std::endl;
-		return S_OK;
-	}
-
-	//add type reference
-	mdTypeRef testClassRef;
-	if(!SUCCEEDED(metadataEmit->DefineTypeRefByName(testLibraryRef, L"TestClass", &testClassRef)))
-	{
-		std::cout << "Unable to DefineTypeRefByName!" << std::endl;
-		return S_OK;
-	}
-
-	// Create a token for the constructor
-	BYTE sig[] = {
-	 0, // IMAGE_CEE_CS_CALLCONV_DEFAULT
-	 0x1, // argument count
-	 ELEMENT_TYPE_CLASS, // ret = ELEMENT_TYPE_VOID
-	 ELEMENT_TYPE_CLASS
-	};
-
-	mdMemberRef testClassConstructorRef;
-	if(!SUCCEEDED(metadataEmit->DefineMemberRef(testClassRef,
-		L"TestClass",
-		sig,
-		sizeof(sig),
-		&testClassConstructorRef)))
-	{
-		std::cout << "Unable to DefineMemeberRef!" << std::endl;
-		return S_OK;
-	}
-
 	std::cout << "Getting IMetaDataImport interface..." << std::endl;
 	//get interface to get type information
 	IMetaDataImport* metadataImport;
@@ -187,10 +137,27 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 		return S_OK;
 	}
 
-	//mdMethodDef methodDef;
-	//if(!SUCCEEDED(metadataImport->FindMethod(typeDef, L"SayHello", NULL, NULL, &methodDef)))
+    #pragma region reverse engineering
+	//std::cout << "Looking for TestLibrary.TestClass type..." << std::endl;
+	//get type token
+	//mdTypeDef typeDef;
+	//if (!SUCCEEDED(metadataImport->FindTypeDefByName(L"TestLibrary.TestClass", NULL, &typeDef)))
 	//{
-	//	std::cout << "Unable to find method in TestApp.DerivedClass!" << std::endl;
+	//	std::cout << "Unable to find TestLibrary.TestClass!" << std::endl;
+	//	return S_OK;
+	//}
+
+	//mdMethodDef methodDef;
+	//if(!SUCCEEDED(metadataImport->FindMethod(typeDef, L".ctor", NULL, NULL, &methodDef)))
+	//{
+	//	std::cout << "Unable to find method in TestLibrary.TestClass!" << std::endl;
+	//	return S_OK;
+	//}
+
+	//mdMethodDef methodDef;
+	//if(!SUCCEEDED(metadataImport->FindMethod(typeDef, L"GetTestInterface", NULL, NULL, &methodDef)))
+	//{
+	//	std::cout << "Unable to find method in TestApp.TargetClassForInjection!" << std::endl;
 	//	return S_OK;
 	//}
 
@@ -206,7 +173,7 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//	return S_OK;
 	//}
 	////print the signature of the function
-	//fprintf(stdout, "il:");
+	//fprintf(stdout, "Function signature:");
 	//for (ULONG i = 0; i < methodSignatureSize; i++) {
 	//	fprintf(stdout, " %02x", methodSignature[i]);
 	//}
@@ -221,32 +188,12 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//}
 
 	////print the il code of the function
-	//fprintf(stdout, "il:");
+	//fprintf(stdout, "Function body il:");
 	//for (ULONG i = 0; i < cbMethodSize; i++) {
 	//	fprintf(stdout, " %02x", pMethodBytes[i]);
 	//}
 	//fprintf(stdout, "\n");
 
-
-	std::cout << "Overriding GetTestInterface() in TestApp.TargetClassForInjection type..." << std::endl;
-	//create method in class
-	COR_SIGNATURE newMethodSignature[] = {
-		IMAGE_CEE_CS_CALLCONV_HASTHIS | IMAGE_CEE_CS_CALLCONV_DEFAULT,
-		0,                               
-		ELEMENT_TYPE_CLASS      
-	};
-	mdMethodDef methodDef;
-	if (!SUCCEEDED(metadataEmit->DefineMethod(typeDef, L"GetTestInterface",
-		mdPublic | mdHideBySig | mdVirtual | mdReuseSlot,
-		newMethodSignature, 
-		sizeof(newMethodSignature), 
-		0x00,
-		miIL,
-		&methodDef)))
-	{
-		std::cout << "Unable to define GetTestInterface!" << std::endl;
-		return S_OK;
-	}
 
 	//il instructions reverse engineered from actual method implementation
 	//0x13 header type, flags and header size
@@ -277,7 +224,9 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//0x00
 	//0x06 ldloc.0 Load local variable 0 onto stack.
 	//0x2a ret
+	#pragma endregion
 
+	#pragma region code injection
 	//create method body
 	//LPCWSTR szString = L"Hello from Overridden SayHello in Derived Class!";
 	//mdString msg;
@@ -286,6 +235,84 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	//	std::cout << "Unable to define string!" << std::endl;
 	//	return S_OK;
 	//}
+	#pragma region add TestLibrary assembly reference
+	ASSEMBLYMETADATA amd;
+	ZeroMemory(&amd, sizeof(amd));
+	amd.usMajorVersion = 0;
+	amd.usMinorVersion = 0;
+	amd.usBuildNumber = 0;
+	amd.usRevisionNumber = 0;
+
+	//add TestLibrary.dll reference
+	mdModuleRef testLibraryRef;
+	if (!SUCCEEDED(metadataAssemblyEmit->DefineAssemblyRef(NULL,
+		0,
+		L"TestLibrary",
+		&amd,
+		NULL,
+		0,
+		0,
+		&testLibraryRef)))
+	{
+		std::cout << "Unable to DefineAssemblyRef!" << std::endl;
+		return S_OK;
+	}
+
+	//add type reference
+	mdTypeRef testClassTypeRef;
+	if (!SUCCEEDED(metadataEmit->DefineTypeRefByName(testLibraryRef, L"TestLibrary.TestClass", &testClassTypeRef)))
+	{
+		std::cout << "Unable to DefineTypeRefByName!" << std::endl;
+		return S_OK;
+	}
+
+	// Create a token for the constructor
+	BYTE sig[] = {
+	IMAGE_CEE_CS_CALLCONV_DEFAULT | IMAGE_CEE_CS_CALLCONV_HASTHIS, // IMAGE_CEE_CS_CALLCONV_DEFAULT
+	 0, // argument count
+ ELEMENT_TYPE_VOID
+	};
+
+	mdMemberRef testClassConstructorRef;
+	if (!SUCCEEDED(metadataEmit->DefineMemberRef(testClassTypeRef,
+		COR_CTOR_METHOD_NAME_W,
+		sig,
+		sizeof(sig),
+		&testClassConstructorRef)))
+	{
+		std::cout << "Unable to DefineMemberRef!" << std::endl;
+		return S_OK;
+	}
+	#pragma endregion
+
+	std::cout << "Overriding GetTestInterface() in TestApp.TargetClassForInjection type..." << std::endl;
+	//create method in class
+	COR_SIGNATURE newMethodSignature[] = {
+		IMAGE_CEE_CS_CALLCONV_HASTHIS | IMAGE_CEE_CS_CALLCONV_DEFAULT,
+		0,                               
+		ELEMENT_TYPE_CLASS,
+		ELEMENT_TYPE_PINNED
+	};
+
+	//print the signature of the method
+	fprintf(stdout, "GetTestInterface() method signature:");
+	for (ULONG i = 0; i < sizeof(newMethodSignature); i++) {
+		fprintf(stdout, " %02x", newMethodSignature[i]);
+	}
+	fprintf(stdout, "\n");
+
+	mdMethodDef methodDef;
+	if (!SUCCEEDED(metadataEmit->DefineMethod(typeDef, L"GetTestInterface",
+		mdPublic | mdHideBySig | mdVirtual | mdReuseSlot,
+		newMethodSignature, 
+		sizeof(newMethodSignature), 
+		0x00,
+		miIL,
+		&methodDef)))
+	{
+		std::cout << "Unable to define GetTestInterface!" << std::endl;
+		return S_OK;
+	}
 
 	//make structure with no padding
 	#pragma pack(push, 1)
@@ -296,7 +323,8 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	} methodBody;
 	#pragma pack(pop)
 
-	methodBody.call = CEE_LDSTR;
+	//https://en.wikipedia.org/wiki/List_of_CIL_instructions
+	methodBody.call = CEE_NEWOBJ; //call constructor
 	methodBody.member_token = testClassConstructorRef;
 	methodBody.rtn = CEE_RET;
 
@@ -305,13 +333,12 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	CopyMemory(instructions, &methodBody, sizeof(methodBody));
 
 	//print the code of the function
-	fprintf(stdout, "il:");
+	fprintf(stdout, "Modified function body IL:");
 	for (ULONG i = 0; i < instructionOffset; i++) {
 		fprintf(stdout, " %02x", instructions[i]);
 	}
 	fprintf(stdout, "\n");
 
-	std::cout << "Overriding GetTestInterface() in TestApp.TargetClassForInjection type..." << std::endl;
 	IMethodMalloc* allocator = nullptr;
 	if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBodyAllocator(moduleID, &allocator)) || allocator == nullptr)
 	{
@@ -345,22 +372,24 @@ HRESULT __stdcall ProfilerCallback::ModuleLoadFinished(ModuleID moduleID, HRESUL
 	}
 
 	//check the method body
-	//LPCBYTE pMethodBytes;
-	//ULONG cbMethodSize;
-	//if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBody(moduleID, methodDef, &pMethodBytes, &cbMethodSize)))
-	//{
-	//	std::cout << "Unable to get method IL function body in TestApp.DerivedClass!" << std::endl;
-	//	return S_OK;
-	//}
+	LPCBYTE pMethodBytes;
+	ULONG cbMethodSize;
+	if (!SUCCEEDED(iCorProfilerInfo->GetILFunctionBody(moduleID, methodDef, &pMethodBytes, &cbMethodSize)))
+	{
+		std::cout << "Unable to get method IL function body in TestApp.DerivedClass!" << std::endl;
+		return S_OK;
+	}
 
 	//print the code of the function
-	//fprintf(stdout, "il:");
-	//for (ULONG i = 0; i < cbMethodSize; i++) {
-	//	fprintf(stdout, " %02x", pMethodBytes[i]);
-	//}
-	//fprintf(stdout, "\n");
+	fprintf(stdout, "Complete function body IL:");
+	for (ULONG i = 0; i < cbMethodSize; i++) {
+		fprintf(stdout, " %02x", pMethodBytes[i]);
+	}
+	fprintf(stdout, "\n");
 
 	std::cout << "------------Completed injecting method into TestApp.DerivedClass----------------" << std::endl << std::endl;
+	#pragma endregion
+
 	return S_OK;
 }
 
